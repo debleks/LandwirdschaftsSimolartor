@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>debleks Landwirtschafts-Simulator</title>
+    <style>
+        body {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            background-color: #e0f7fa;
+            font-family: Arial, sans-serif;
+        }
+        #field {
+            display: grid;
+            grid-template-columns: repeat(5, 60px);
+            gap: 5px;
+            margin-bottom: 20px;
+        }
+        .plot {
+            width: 60px;
+            height: 60px;
+            background-color: #8B4513;
+            border: 1px solid #654321;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+        }
+        .seeded {
+            background-color: #228B22;
+        }
+        .grown {
+            background-color: #FFD700;
+        }
+        .rotted {
+            background-color: orange;
+            cursor: default;
+        }
+        #endScreen, #startScreen, #gameOverScreen {
+            display: none;
+            flex-direction: column;
+            align-items: center;
+        }
+        button {
+            margin-top: 10px;
+            padding: 10px;
+            font-size: 16px;
+            background-color: #007BFF;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+    </style>
+</head>
+<body>
+
+<div id="startScreen">
+    <h1>Willkommen zu debleks Landwirtschafts-Simulator!</h1>
+    <button id="startButton">Spiel starten</button>
+</div>
+
+<h1 id="gameTitle" style="display:none;">debleks Landwirtschafts-Simulator</h1>
+<div id="field"></div>
+<p id="score">Punkte: 0</p>
+<button id="plantButton">Pflanze Mais</button>
+<p id="timer">Zeit: 0:50</p>
+
+<div id="endScreen">
+    <h2>Spiel beendet!</h2>
+    <p id="finalScore"></p>
+    <p id="playerName"></p>
+    <h3>Höchste Punktzahlen:</h3>
+    <ol id="highScores"></ol>
+    <input type="text" id="nameInput" placeholder="Gib deinen Namen ein" />
+    <button id="saveScoreButton">Punktzahl speichern</button>
+    <button id="restartButton">Erneut spielen</button>
+</div>
+
+<div id="gameOverScreen">
+    <h2>Spiel beendet!</h2>
+    <p>Alle Pflanzen sind verrottet!</p>
+    <button id="restartFromGameOverButton">Erneut spielen</button>
+</div>
+
+<script>
+    const fieldElement = document.getElementById('field');
+    const scoreElement = document.getElementById('score');
+    const plantButton = document.getElementById('plantButton');
+    const timerElement = document.getElementById('timer');
+    const endScreen = document.getElementById('endScreen');
+    const finalScoreElement = document.getElementById('finalScore');
+    const playerNameElement = document.getElementById('playerName');
+    const highScoresElement = document.getElementById('highScores');
+    const nameInput = document.getElementById('nameInput');
+    const saveScoreButton = document.getElementById('saveScoreButton');
+    const restartButton = document.getElementById('restartButton');
+    const startScreen = document.getElementById('startScreen');
+    const startButton = document.getElementById('startButton');
+    const gameTitle = document.getElementById('gameTitle');
+    const gameOverScreen = document.getElementById('gameOverScreen');
+    const restartFromGameOverButton = document.getElementById('restartFromGameOverButton');
+
+    let score = 0;
+    let timeLeft = 50; // 50 Sekunden
+    let timerInterval;
+    let highScores = JSON.parse(localStorage.getItem('highScores')) || [];
+
+    // Erstelle 25 Felder
+    function createField() {
+        for (let i = 0; i < 25; i++) {
+            const plot = document.createElement('div');
+            plot.classList.add('plot');
+            plot.addEventListener('click', () => harvest(plot));
+            fieldElement.appendChild(plot);
+        }
+    }
+
+    // Pflanzenfunktion
+    plantButton.addEventListener('click', () => {
+        const plots = document.querySelectorAll('.plot');
+        let planted = false;
+        plots.forEach(plot => {
+            if (!plot.classList.contains('seeded') && !plot.classList.contains('grown') && !plot.classList.contains('rotted')) {
+                plot.classList.add('seeded');
+                planted = true;
+                setTimeout(() => {
+                    plot.classList.remove('seeded');
+                    plot.classList.add('grown');
+                    // Füge die Verrottungslogik hinzu
+                    setTimeout(() => {
+                        if (plot.classList.contains('grown')) {
+                            plot.classList.remove('grown');
+                            plot.classList.add('rotted');
+                            checkGameOver();
+                        }
+                    }, 10000); // 10 Sekunden warten bis die Pflanze verrottet
+                }, 5000); // 5 Sekunden warten bis die Pflanze wächst
+            }
+        });
+        if (!planted) {
+            alert("Keine verfügbaren Felder!");
+        }
+    });
+
+    // Erntefunktion
+    function harvest(plot) {
+        if (plot.classList.contains('grown')) {
+            plot.classList.remove('grown');
+            score += 10;
+            scoreElement.innerText = `Punkte: ${score}`;
+        }
+    }
+
+    // Überprüfe ob das Spiel vorbei ist
+    function checkGameOver() {
+        const plots = document.querySelectorAll('.plot');
+        const allRotted = [...plots].every(plot => plot.classList.contains('rotted'));
+        if (allRotted) {
+            showGameOverScreen();
+        }
+    }
+
+    // Timer-Funktion
+    function startTimer() {
+        timerInterval = setInterval(() => {
+            timeLeft--;
+            const minutes = Math.floor(timeLeft / 60);
+            const seconds = timeLeft % 60;
+            timerElement.innerText = `Zeit: ${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
+
+            if (timeLeft <= 0) {
+                clearInterval(timerInterval);
+                endGame();
+            }
+        }, 1000);
+    }
+
+    // Spiel beenden
+    function endGame() {
+        clearInterval(timerInterval);
+        fieldElement.style.display = 'none';
+        plantButton.style.display = 'none';
+        timerElement.style.display = 'none';
+        endScreen.style.display = 'flex';
+        finalScoreElement.innerText = `Dein Punktestand: ${score}`;
+        displayHighScores();
+    }
+
+    // Spiel beenden, wenn alle Pflanzen verrottet sind
+    function showGameOverScreen() {
+        clearInterval(timerInterval);
+        fieldElement.style.display = 'none';
+        plantButton.style.display = 'none';
+        timerElement.style.display = 'none';
+        gameOverScreen.style.display = 'flex';
+    }
+
+    // Höchste Punktzahlen anzeigen
+    function displayHighScores() {
+        highScoresElement.innerHTML = '';
+        highScores.sort((a, b) => b.score - a.score);
+        highScores.forEach(entry => {
+            const li = document.createElement('li');
+            li.innerText = `${entry.name}: ${entry.score}`;
+            highScoresElement.appendChild(li);
+        });
+    }
+
+    // Punktzahl speichern
+    saveScoreButton.addEventListener('click', () => {
+        const name = nameInput.value.trim();
+        if (name) {
+            highScores.push({ name: name, score: score });
+            localStorage.setItem('highScores', JSON.stringify(highScores));
+            playerNameElement.innerText = `Spieler: ${name}`;
+            displayHighScores();
+            nameInput.value = '';
+        } else {
+            alert("Bitte gib deinen Namen ein.");
+        }
+    });
+
+    // Neustartfunktion
+    restartButton.addEventListener('click', () => {
+        location.reload();
+    });
+
+    // Neustart vom Game Over-Screen
+    restartFromGameOverButton.addEventListener('click', () => {
+        location.reload();
+    });
+
+    // Startspiel
+    startButton.addEventListener('click', () => {
+        startScreen.style.display = 'none';
+        gameTitle.style.display = 'block';
+        fieldElement.style.display = 'grid';
+        plantButton.style.display = 'block';
+        timerElement.style.display = 'block';
+        createField();
+        startTimer();
+    });
+
+    // Spiel starten
+    startScreen.style.display = 'flex';
+</script>
+
+</body>
+</html>
